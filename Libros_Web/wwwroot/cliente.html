@@ -219,8 +219,8 @@
         function prepararEdicion(libro) {
             llenarFormulario(libro);
             document.getElementById('modalTitulo').innerText = "Editar Libro";
-            document.getElementById('formFieldset').disabled = false; // Habilitar inputs
-            document.getElementById('btnGuardar').classList.remove('d-none'); // Mostrar botón
+            document.getElementById('formFieldset').disabled = false;
+            document.getElementById('btnGuardar').classList.remove('d-none');
             obtenerModal().show();
         }
 
