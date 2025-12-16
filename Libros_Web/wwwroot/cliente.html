@@ -22,7 +22,18 @@
 
         <div id="alerta" class="alert d-none" role="alert"></div>
 
-        <button class="btn btn-primary mb-3" onclick="abrirModal()">+ Nuevo Libro</button>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <button class="btn btn-primary w-100" onclick="abrirModal()">+ Nuevo Libro</button>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="number" id="buscarIdInput" class="form-control" placeholder="Buscar por ID...">
+                    <button class="btn btn-outline-secondary" type="button" onclick="buscarPorId()">Buscar</button>
+                    <button class="btn btn-outline-danger" type="button" onclick="listar()">Limpiar</button>
+                </div>
+            </div>
+        </div>
 
         <div class="card shadow">
             <div class="card-body">
@@ -34,7 +45,7 @@
                             <th>Autor</th>
                             <th>Género</th>
                             <th>Año</th>
-                            <th>Acciones</th>
+                            <th class="text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tablaLibros"></tbody>
@@ -51,15 +62,17 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" id="id">
-                    <div class="mb-2"><label>Título</label><input type="text" class="form-control" id="tituloInput" required></div>
-                    <div class="mb-2"><label>Autor</label><input type="text" class="form-control" id="autorInput" required></div>
-                    <div class="mb-2"><label>Género</label><input type="text" class="form-control" id="generoInput"></div>
-                    <div class="mb-2"><label>Año Publicación</label><input type="number" class="form-control" id="fechaInput"></div>
+                    <fieldset id="formFieldset">
+                        <input type="hidden" id="id">
+                        <div class="mb-2"><label>Título</label><input type="text" class="form-control" id="tituloInput" required></div>
+                        <div class="mb-2"><label>Autor</label><input type="text" class="form-control" id="autorInput" required></div>
+                        <div class="mb-2"><label>Género</label><input type="text" class="form-control" id="generoInput"></div>
+                        <div class="mb-2"><label>Año Publicación</label><input type="number" class="form-control" id="fechaInput"></div>
+                    </fieldset>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" onclick="guardar()">Guardar</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="btnGuardar" onclick="guardar()">Guardar</button>
                 </div>
             </div>
         </div>
@@ -69,49 +82,89 @@
     <script>
         const API_URL = '/api/Books';
 
-        // Nota: .NET Core por defecto convierte la primera letra a minúscula en el JSON
-        // C#: Titulo -> JSON: titulo
-        // C#: Fecha_Publicacion -> JSON: fecha_Publicacion
-
         document.addEventListener('DOMContentLoaded', () => {
             listar();
         });
 
+        // 1. (GET)
         async function listar() {
+            document.getElementById('buscarIdInput').value = '';
             try {
                 const res = await fetch(API_URL);
-                if (!res.ok) throw new Error("Error API");
+                if (!res.ok) throw new Error("Error al obtener la lista");
                 const data = await res.json();
-
-                const tbody = document.getElementById('tablaLibros');
-                tbody.innerHTML = '';
-
-                if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No hay libros registrados.</td></tr>';
-                }
-
-                data.forEach(libro => {
-                    // AQUÍ ESTÁ EL CAMBIO: Usamos tus nombres en español (respetando minúscula inicial del JSON)
-                    tbody.innerHTML += `
-                            <tr>
-                                <td>${libro.id}</td>
-                                <td>${libro.titulo}</td>
-                                <td>${libro.autor}</td>
-                                <td>${libro.genero}</td>
-                                <td>${libro.fecha_Publicacion}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-warning" onclick='editar(${JSON.stringify(libro)})'>Editar</button>
-                                    <button class="btn btn-sm btn-danger" onclick="eliminar(${libro.id})">Eliminar</button>
-                                </td>
-                            </tr>`;
-                });
-            } catch (e) { mostrarAlerta('Error al cargar', 'danger'); }
+                renderizarTabla(data);
+            } catch (e) { mostrarAlerta(e.message, 'danger'); }
         }
 
+        // 2. CONSULTAR POR ID (GET /{id})
+        async function buscarPorId() {
+            const id = document.getElementById('buscarIdInput').value;
+            if (!id) { listar(); return; }
+
+            try {
+                const res = await fetch(`${API_URL}/${id}`);
+
+                if (!res.ok) {
+                    renderizarTabla([]);
+                    throw new Error("Libro no encontrado (ID inválido)");
+                }
+
+                const libro = await res.json();
+                renderizarTabla([libro]);
+            } catch (e) {
+                mostrarAlerta(e.message, 'warning');
+            }
+        }
+
+        // 3. RENDER DE LA TABLA
+        function renderizarTabla(data) {
+            const tbody = document.getElementById('tablaLibros');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No se encontraron registros.</td></tr>';
+                return;
+            }
+
+            data.forEach(libro => {
+                tbody.innerHTML += `
+                        <tr>
+                            <td>${libro.id}</td>
+                            <td>${libro.titulo}</td>
+                            <td>${libro.autor}</td>
+                            <td>${libro.genero}</td>
+                            <td>${libro.fecha_Publicacion}</td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-info text-white" title="Ver Detalle" onclick="verDetalle(${libro.id})">👀</button>
+                                <button class="btn btn-sm btn-warning" title="Editar" onclick='prepararEdicion(${JSON.stringify(libro)})'>✏️</button>
+                                <button class="btn btn-sm btn-danger" title="Eliminar" onclick="eliminar(${libro.id})">🗑️</button>
+                            </td>
+                        </tr>`;
+            });
+        }
+
+        // 4. VER DETALLE (GET /{id})
+        async function verDetalle(id) {
+            try {
+                const res = await fetch(`${API_URL}/${id}`);
+                if (!res.ok) throw new Error("No se pudo cargar el detalle");
+                const libro = await res.json();
+
+                llenarFormulario(libro);
+
+                // Configurar Modal para "Solo Lectura"
+                document.getElementById('modalTitulo').innerText = "Detalle del Libro";
+                document.getElementById('formFieldset').disabled = true; // Deshabilitar inputs
+                document.getElementById('btnGuardar').classList.add('d-none'); // Ocultar botón guardar
+
+                obtenerModal().show();
+            } catch (e) { mostrarAlerta(e.message, 'danger'); }
+        }
+
+        // 5. (CREAR POST / EDITAR PUT)
         async function guardar() {
             const id = document.getElementById('id').value;
-
-            // AQUÍ CONSTRUIMOS EL OBJETO EN ESPAÑOL PARA ENVIARLO AL BACKEND
             const libro = {
                 id: id ? parseInt(id) : 0,
                 titulo: document.getElementById('tituloInput').value,
@@ -133,46 +186,58 @@
                 if (res.ok || res.status === 204) {
                     cerrarModal();
                     listar();
-                    mostrarAlerta('Guardado con éxito', 'success');
+                    mostrarAlerta('Operación exitosa', 'success');
                 } else {
-                    mostrarAlerta('Error al guardar', 'danger');
+                    mostrarAlerta('Error en la operación', 'danger');
                 }
+            } catch (e) { mostrarAlerta('Error de conexión', 'danger'); }
+        }
+
+        // 6. (DELETE)
+        async function eliminar(id) {
+            if (!confirm('¿Seguro que deseas eliminar este libro?')) return;
+            try {
+                const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                if (res.ok) { listar(); mostrarAlerta('Libro eliminado', 'success'); }
+                else mostrarAlerta('Error al eliminar', 'danger');
             } catch (e) { mostrarAlerta('Error de red', 'danger'); }
         }
 
-        async function eliminar(id) {
-            if (!confirm('¿Eliminar libro?')) return;
-            const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-            if (res.ok) { listar(); mostrarAlerta('Eliminado', 'success'); }
-            else mostrarAlerta('Error al eliminar', 'danger');
-        }
-
-        // --- UTILIDADES ---
 
         function obtenerModal() {
             return bootstrap.Modal.getOrCreateInstance(document.getElementById('modalLibro'));
         }
 
         function abrirModal() {
+            limpiarFormulario();
+            document.getElementById('modalTitulo').innerText = "Nuevo Libro";
+            document.getElementById('formFieldset').disabled = false; // Habilitar inputs
+            document.getElementById('btnGuardar').classList.remove('d-none'); // Mostrar botón
+            obtenerModal().show();
+        }
+
+        function prepararEdicion(libro) {
+            llenarFormulario(libro);
+            document.getElementById('modalTitulo').innerText = "Editar Libro";
+            document.getElementById('formFieldset').disabled = false; // Habilitar inputs
+            document.getElementById('btnGuardar').classList.remove('d-none'); // Mostrar botón
+            obtenerModal().show();
+        }
+
+        function limpiarFormulario() {
             document.getElementById('id').value = '';
             document.getElementById('tituloInput').value = '';
             document.getElementById('autorInput').value = '';
             document.getElementById('generoInput').value = '';
             document.getElementById('fechaInput').value = '';
-            document.getElementById('modalTitulo').innerText = "Nuevo Libro";
-            obtenerModal().show();
         }
 
-        function editar(libro) {
-            // AQUÍ LLENAMOS EL FORMULARIO CON LOS DATOS EN ESPAÑOL
+        function llenarFormulario(libro) {
             document.getElementById('id').value = libro.id;
             document.getElementById('tituloInput').value = libro.titulo;
             document.getElementById('autorInput').value = libro.autor;
             document.getElementById('generoInput').value = libro.genero;
             document.getElementById('fechaInput').value = libro.fecha_Publicacion;
-
-            document.getElementById('modalTitulo').innerText = "Editar Libro";
-            obtenerModal().show();
         }
 
         function cerrarModal() { obtenerModal().hide(); }
@@ -182,7 +247,7 @@
             el.className = `alert alert-${tipo}`;
             el.innerText = msg;
             el.classList.remove('d-none');
-            setTimeout(() => el.classList.add('d-none'), 3000);
+            setTimeout(() => el.classList.add('d-none'), 4000);
         }
     </script>
 </body>
